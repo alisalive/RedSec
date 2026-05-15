@@ -1,0 +1,152 @@
+"""Normalized event schema for RedSEC.
+
+This is the core data model that all parsers output and all other modules consume.
+"""
+
+import uuid
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field, model_serializer
+
+
+class EventType(str, Enum):
+    """Classification of the offensive security event."""
+
+    port_scan = "port_scan"
+    subdomain_found = "subdomain_found"
+    dir_found = "dir_found"
+    vuln_found = "vuln_found"
+    sqli_found = "sqli_found"
+    login_success = "login_success"
+    login_failed = "login_failed"
+    exploit_success = "exploit_success"
+    lateral_movement = "lateral_movement"
+    credential_dumped = "credential_dumped"
+
+
+class Severity(str, Enum):
+    """Severity level of the event, ordered from lowest to highest."""
+
+    info = "info"
+    low = "low"
+    medium = "medium"
+    high = "high"
+    critical = "critical"
+
+    def __lt__(self, other: "Severity") -> bool:
+        """Compare severity levels by rank."""
+        order = [s.value for s in Severity]
+        return order.index(self.value) < order.index(other.value)
+
+    def __le__(self, other: "Severity") -> bool:
+        """Compare severity levels by rank."""
+        return self == other or self < other
+
+    def __gt__(self, other: "Severity") -> bool:
+        """Compare severity levels by rank."""
+        return not self <= other
+
+    def __ge__(self, other: "Severity") -> bool:
+        """Compare severity levels by rank."""
+        return self == other or self > other
+
+
+class ToolName(str, Enum):
+    """Offensive security tool that produced the event."""
+
+    nmap = "nmap"
+    subfinder = "subfinder"
+    ffuf = "ffuf"
+    feroxbuster = "feroxbuster"
+    nuclei = "nuclei"
+    sqlmap = "sqlmap"
+    hydra = "hydra"
+    metasploit = "metasploit"
+    impacket = "impacket"
+
+
+class RedSecEvent(BaseModel):
+    """Normalized event produced by any RedSEC parser.
+
+    All parsers must return a list of RedSecEvent instances.
+    All downstream modules (correlation, MITRE mapping, exporters) consume this type.
+    """
+
+    model_config = {
+        "json_encoders": {datetime: lambda dt: dt.isoformat()},
+        "use_enum_values": True,
+    }
+
+    id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Auto-generated UUID uniquely identifying this event.",
+    )
+    tool: ToolName = Field(
+        description="The offensive security tool that produced this event.",
+    )
+    event_type: EventType = Field(
+        description="Semantic classification of what occurred (e.g. port_scan, vuln_found).",
+    )
+    severity: Severity = Field(
+        description="Severity level of the event: info, low, medium, high, or critical.",
+    )
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="UTC datetime when the event occurred or was observed.",
+    )
+    target: str = Field(
+        description="IP address or domain name that was the target of the action.",
+    )
+    port: Optional[int] = Field(
+        default=None,
+        description="TCP/UDP port number involved in the event, if applicable.",
+    )
+    protocol: Optional[str] = Field(
+        default=None,
+        description="Network protocol (e.g. 'tcp', 'udp', 'http'), if applicable.",
+    )
+    description: str = Field(
+        description="Human-readable summary of what happened in this event.",
+    )
+    raw: dict = Field(
+        default_factory=dict,
+        description="Original parsed data from the tool output, preserved verbatim.",
+    )
+    mitre_technique: Optional[str] = Field(
+        default=None,
+        description="MITRE ATT&CK technique ID mapped to this event (e.g. 'T1046').",
+    )
+    mitre_tactic: Optional[str] = Field(
+        default=None,
+        description="MITRE ATT&CK tactic name mapped to this event (e.g. 'Discovery').",
+    )
+    detection_risk: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Detection risk heuristic score from 0.0 (low risk) to 1.0 (high risk).",
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Arbitrary string tags for filtering and grouping events.",
+    )
+
+    def to_sec_line(self) -> str:
+        """Return a SEC-compatible log line for this event.
+
+        Format: TIMESTAMP TOOL EVENT_TYPE TARGET DESCRIPTION
+
+        The Simple Event Correlator (SEC) by Risto Vaarandi expects
+        plain-text log lines, one event per line, with fields separated
+        by spaces. The timestamp is ISO-8601 UTC.
+
+        Returns:
+            A single-line string suitable for writing to a SEC input file.
+        """
+        timestamp_str = self.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+        tool_str = self.tool if isinstance(self.tool, str) else self.tool.value
+        event_type_str = self.event_type if isinstance(self.event_type, str) else self.event_type.value
+        description_safe = self.description.replace("\n", " ").replace("\r", "")
+        return f"{timestamp_str} {tool_str} {event_type_str} {self.target} {description_safe}"
