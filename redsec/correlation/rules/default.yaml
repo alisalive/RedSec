@@ -4,7 +4,7 @@ rules:
     conditions:
       - port_scan
       - dir_found
-    window_seconds: 300
+    window_seconds: 86400
     chain_name: "Recon Chain"
     severity: low
 
@@ -13,7 +13,7 @@ rules:
     conditions:
       - dir_found
       - vuln_found
-    window_seconds: 180
+    window_seconds: 86400
     chain_name: "Web Attack Chain"
     severity: high
 
@@ -22,7 +22,7 @@ rules:
     conditions:
       - login_failed
       - login_success
-    window_seconds: 120
+    window_seconds: 86400
     chain_name: "Credential Attack"
     severity: high
 
@@ -32,7 +32,7 @@ rules:
       - port_scan
       - vuln_found
       - exploit_success
-    window_seconds: 600
+    window_seconds: 86400
     chain_name: "Full Attack Chain"
     severity: critical
 
@@ -41,7 +41,7 @@ rules:
     conditions:
       - dir_found
       - sqli_found
-    window_seconds: 240
+    window_seconds: 86400
     chain_name: "SQL Injection Chain"
     severity: high
 
@@ -50,15 +50,24 @@ rules:
     conditions:
       - exploit_success
       - lateral_movement
-    window_seconds: 300
+    window_seconds: 86400
     chain_name: "Post Exploitation"
     severity: critical
+
+  - name: "Recon to Vuln Chain"
+    description: "Port scan followed by vulnerability discovery — common recon-to-exploit pattern."
+    conditions:
+      - port_scan
+      - vuln_found
+    window_seconds: 86400
+    chain_name: "Recon to Vuln Chain"
+    severity: high
 
   - name: "AD Attack Chain"
     description: "Credential dumping followed by lateral movement — Active Directory attack pattern."
     conditions:
       - credential_dumped
       - lateral_movement
-    window_seconds: 600
+    window_seconds: 86400
     chain_name: "AD Attack Chain"
     severity: critical

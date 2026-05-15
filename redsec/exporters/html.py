@@ -129,7 +129,7 @@ _TEMPLATE_SOURCE = r"""<!DOCTYPE html>
 
   <!-- Header -->
   <header class="site-header">
-    <div class="logo">RED<span>SEC</span></div>
+    <div class="logo"><span style="color:#ff4444">RED</span><span>SEC</span></div>
     <div class="meta">Generated {{ generated_at }} &nbsp;|&nbsp; RedSEC v{{ version }}</div>
     <div>
       <span class="badge badge-severity overall-severity"
