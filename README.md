@@ -41,19 +41,19 @@ SEC project: https://github.com/simple-evcorr/sec
 
 Basic scan with nmap and nuclei output:
 
-    redsec scan --nmap scan.xml --nuclei findings.jsonl
+    redsec scan --nmap scan.xml --nuclei findings.jsonl --out-log redsec.log
 
 Full pipeline with multiple tools and all outputs:
 
-    redsec scan
-      --nmap scan.xml
-      --subfinder subs.json
-      --ffuf dirs.json
-      --nuclei vulns.jsonl
-      --hydra creds.txt
-      --out-html report.html
-      --out-sec rules.conf
-      --out-json results.json
+    redsec scan \
+      --nmap scan.xml \
+      --subfinder subs.json \
+      --ffuf dirs.json \
+      --nuclei vulns.jsonl \
+      --hydra creds.txt \
+      --out-html report.html \
+      --out-sec rules.conf \
+      --out-log redsec.log
 
 Print version and SEC tool reference:
 
@@ -86,32 +86,46 @@ Print version and SEC tool reference:
 
 ## SEC Integration
 
-RedSEC generates two types of SEC rules for each attack chain:
+RedSEC exports attack chains as .conf files for SEC (Simple Event Correlator)
+by Risto Vaarandi. The full integration workflow:
 
-type=Single rules fire once per matching log line. Each parsed event becomes
-one Single rule with a RegExp pattern anchored on tool, event_type, and target:
+**Step 1** — Run RedSEC scan and generate SEC rules + event log:
 
-    type=Single
-    ptype=RegExp
-    pattern=\S+ nmap port_scan 10\.0\.0\.1
-    desc=redsec_FULL_ATTACK_CHAIN_nmap_port_scan_a1b2c3d4
-    action=pipe echo "CHAIN: Full Attack Chain | EVENT: port_scan | TARGET: 10.0.0.1 | MITRE: T1046"
+    redsec scan --nmap scan.xml --nuclei findings.jsonl \
+      --out-sec rules.conf --out-log redsec.log
 
-type=EventGroup rules fire when all events in a chain have matched within the
-correlation window. Each chain gets one EventGroup completion rule:
+**Step 2** — Feed the event log to SEC:
 
-    type=EventGroup
-    ptype=RegExp
-    pattern=REDSEC_CHAIN_COMPLETE_FULL_ATTACK_CHAIN
-    sub=redsec_FULL_ATTACK_CHAIN_nmap_port_scan_a1b2c3d4
-    sub=redsec_FULL_ATTACK_CHAIN_nuclei_vuln_found_e5f6a7b8
-    sub=redsec_FULL_ATTACK_CHAIN_metasploit_exploit_success_c9d0e1f2
-    desc=Chain complete: Full Attack Chain
-    action=pipe echo "REDSEC CHAIN COMPLETE: Full Attack Chain | severity=critical | techniques=T1046,T1190"
+    sec --conf=rules.conf --input=redsec.log --fromstart
 
-Feed the output to SEC:
+SEC will fire alerts for each detected event and chain completion.
+Use `--fromstart` to process existing log files. Without it, SEC only
+monitors new lines appended to the file.
 
-    sec --conf=redsec_rules.conf --input=combined.log
+Each chain produces:
+
+- `type=Single` rules per event — fires once per matching log line:
+
+      type=Single
+      ptype=RegExp
+      pattern=\S+ nmap port_scan 10\.0\.0\.1 .*port 22
+      desc=redsec_FULL_ATTACK_CHAIN_nmap_port_scan_a1b2c3d4
+      action=write - CHAIN: %s | EVENT: port_scan | TARGET: 10.0.0.1 | MITRE: T1046
+
+- `type=SingleWithThreshold` completion rule — fires when all events in the
+  chain are seen within the time window:
+
+      type=SingleWithThreshold
+      ptype=RegExp
+      pattern=CHAIN: Full Attack Chain
+      desc=Chain Full Attack Chain detected
+      action=write - REDSEC CHAIN COMPLETE: Full Attack Chain | severity=critical
+      window=86400
+      thresh=3
+
+SEC patterns are URL-aware: ffuf/feroxbuster events use the full URL as the
+pattern anchor to prevent duplicate matches across events sharing the same
+tool, event_type, and target.
 
 ---
 
@@ -128,6 +142,9 @@ Feed the output to SEC:
     hydra         Brute force              -o (text)
     metasploit    Exploitation/Post-ex     JSON export
     impacket      AD/Post-exploitation     text (secretsdump)
+
+Use `--out-log` to write parsed events as SEC-compatible log lines.
+Feed this file directly to SEC with: `sec --conf=rules.conf --input=redsec.log`
 
 ---
 
