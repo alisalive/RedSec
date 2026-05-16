@@ -86,6 +86,25 @@ Print version and SEC tool reference:
 
 ---
 
+## Screenshots
+
+**nmap scan:**
+![nmap scan](screenshots/nmap.png)
+
+**nuclei vulnerability scan:**
+![nuclei scan](screenshots/nuclei.png)
+
+**RedSEC pipeline output:**
+![RedSEC](screenshots/RedSEC.png)
+
+**HTML report:**
+![HTML Report](screenshots/report.png)
+
+**SEC integration alerts:**
+![SEC alerts](screenshots/SEC.png)
+
+---
+
 ## SEC Integration
 
 RedSEC exports attack chains as .conf files for SEC (Simple Event Correlator)
