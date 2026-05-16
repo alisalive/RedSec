@@ -49,3 +49,10 @@ Thumbs.db
 output/
 reports/
 .claude/ 
+nuclei.jsonl 
+report.html 
+rules.conf 
+scan.xml 
+redsec.log 
+redsec_report.html 
+redsec_rules.conf 
