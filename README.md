@@ -1,5 +1,7 @@
 # RedSEC
 
+![CI](https://github.com/alisalive/RedSEC/actions/workflows/ci.yml/badge.svg)
+
 **Red team log aggregation, correlation, and SEC export tool.**
 
 RedSEC collects output from offensive security tools, correlates events into
