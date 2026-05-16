@@ -116,6 +116,7 @@ def version() -> None:
 @click.option("--out-html",     default="redsec_report.html",  show_default=True, help="Output HTML report path.")
 @click.option("--out-sec",      default="redsec_rules.conf",   show_default=True, help="Output SEC .conf path.")
 @click.option("--out-json",     default=None, help="Output JSON path (optional).")
+@click.option("--out-log",      default=None, help="Write parsed events as SEC-compatible log lines to PATH (for use with: sec --input=PATH).")
 def scan(
     nmap: Optional[str],
     nuclei: Optional[str],
@@ -130,6 +131,7 @@ def scan(
     out_html: str,
     out_sec: str,
     out_json: Optional[str],
+    out_log: Optional[str],
 ) -> None:
     """Parse tool output files, correlate events, and generate reports.
 
@@ -143,7 +145,8 @@ def scan(
     5. Export SEC .conf rules file
     6. Export HTML report
     7. Optionally export JSON
-    8. Print summary table
+    8. Optionally write SEC log file (--out-log)
+    9. Print summary table
 
     At least one input file must be provided.
     """
@@ -261,9 +264,28 @@ def scan(
             _warn(f"JSON export failed: {exc}")
 
     # ------------------------------------------------------------------
-    # Step 8: Summary table
+    # Step 8: SEC log file (optional)
     # ------------------------------------------------------------------
-    _print_summary(all_events, chains, sec_path, html_path, json_path)
+    log_path: Optional[str] = None
+    if out_log:
+        _info("Writing SEC-compatible event log...")
+        try:
+            abs_log = os.path.abspath(out_log)
+            parent = os.path.dirname(abs_log)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            with open(abs_log, "w", encoding="utf-8") as fh:
+                for event in all_events:
+                    fh.write(event.to_sec_line() + "\n")
+            log_path = abs_log
+            _ok(f"SEC log written to: {log_path} ({len(all_events)} line(s))")
+        except Exception as exc:
+            _warn(f"SEC log export failed: {exc}")
+
+    # ------------------------------------------------------------------
+    # Step 9: Summary table
+    # ------------------------------------------------------------------
+    _print_summary(all_events, chains, sec_path, html_path, json_path, log_path)
 
 
 # ---------------------------------------------------------------------------
@@ -369,6 +391,7 @@ def _print_summary(
     sec_path: Optional[str],
     html_path: Optional[str],
     json_path: Optional[str],
+    log_path: Optional[str] = None,
 ) -> None:
     """Print a formatted summary table to the terminal.
 
@@ -378,6 +401,7 @@ def _print_summary(
         sec_path: Path of the SEC .conf file, or None if export failed.
         html_path: Path of the HTML report, or None if export failed.
         json_path: Path of the JSON export, or None if not requested/failed.
+        log_path: Path of the SEC log file, or None if not requested/failed.
     """
     unique_targets = len({e.target for e in events})
     unique_techniques = len({e.mitre_technique for e in events if e.mitre_technique})
@@ -401,6 +425,8 @@ def _print_summary(
         click.echo(click.style(f"    HTML : {html_path}", fg="green"))
     if json_path:
         click.echo(click.style(f"    JSON : {json_path}", fg="green"))
+    if log_path:
+        click.echo(click.style(f"    LOG  : {log_path}", fg="green"))
     click.echo("")
 
 
