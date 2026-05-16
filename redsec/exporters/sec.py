@@ -205,17 +205,13 @@ class SecExporter:
 
         pattern = self._build_pattern(tool, event_type, event.target)
         desc = self._rule_desc(event, chain_label)
-        action_msg = (
-            f"CHAIN: {chain_label} | EVENT: {event_type} "
-            f"| TARGET: {event.target} | MITRE: {technique}"
-        )
 
         return [
             "type=Single",
             "ptype=RegExp",
             f"pattern={pattern}",
             f"desc={desc}",
-            f"action=write - CHAIN: %0 | EVENT: {event_type} | TARGET: {event.target} | MITRE: {technique}",
+            f"action=write - CHAIN: %s | EVENT: {event_type} | TARGET: {event.target} | MITRE: {technique}",
         ]
 
     def _eventgroup_rule(self, chain: AttackChain) -> list[str]:
